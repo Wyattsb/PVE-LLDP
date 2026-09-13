@@ -20,8 +20,8 @@ To use the automated install script, follow these steps:
    To get started, clone the repository from GitHub by running the following command:
 
    ```bash
-   git clone https://github.com/abdellbar1/ProxLLDPConfig.git
-   cd ProxLLDPConfig
+   git clone https://github.com/Wyattsb/PVE-LLDP.git
+   cd PVE-LLDP
    ```
 2. **Make the script executable**:
    
@@ -95,7 +95,13 @@ Configure `lldpd` to monitor only interfaces that match a specific pattern, such
     sudo lldpcli configure system interface pattern en*
     ```
 
-2. To verify that the interface pattern has been set correctly, you can display the current configuration of `lldpd`:
+    Alternatively, all interfaces would look like (Yes, the single quotations are required):
+
+   ```bash
+   sudo lldpcli configure system interface pattern '*'
+   ```
+
+3. To verify that the interface pattern has been set correctly, you can display the current configuration of `lldpd`:
 
     ```bash
     sudo lldpcli show configuration
