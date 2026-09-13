@@ -36,8 +36,8 @@ cp $INTERFACES_FILE $TEMP_FILE
 log "Backed up current interfaces file."
 
 # Configure lldpcli to only monitor en* interfaces
-lldpcli configure system interface pattern en*
-log "Configured lldpcli to monitor interfaces matching 'en*' pattern."
+lldpcli configure system interface pattern '*'
+log "Configured lldpcli to monitor interfaces matching '*' pattern."
 
 # Function to update interface description
 update_description() {
@@ -65,6 +65,7 @@ update_description() {
 # Initialize variables to track interfaces and their SysName/PortDescr
 declare -A iface_sysnames
 declare -A iface_portdescrs
+declare -A iface_portid
 
 # Process each neighbor and extract relevant data
 while IFS= read -r line; do
@@ -76,12 +77,18 @@ while IFS= read -r line; do
         if [[ -z "${iface_sysnames[$iface]}" ]]; then
             iface_sysnames[$iface]="$ll_dp_sysname"
         fi
+    elif [[ "$line" =~ PortID: ]]; then
+        port_id=$(echo "$line" | cut -d ' ' -f 2-)
+        # Store PortID only if not already set for this interface
+        if [[ -z "${iface_portid[$iface]}" ]]; then
+            iface_portid[$iface]="$port_id"
+        fi
     elif [[ "$line" =~ PortDescr: ]]; then
         port_descr=$(echo "$line" | awk '{for(i=2;i<=NF;i++) printf "%s ", $i}' | sed 's/ *$//')
         # Store PortDescr only if not already set for this interface
         if [[ -z "${iface_portdescrs[$iface]}" ]]; then
             iface_portdescrs[$iface]="$port_descr"
-            log "Found SysName '${iface_sysnames[$iface]}' and PortDescr '$port_descr' for $iface."
+            log "Found SysName '${iface_sysnames[$iface]}' plugged into '${iface_portid[$iface]}' and PortDescr '$port_descr' for $iface."
         fi
     fi
 done < <(lldpcli show neighbors)
@@ -90,8 +97,9 @@ done < <(lldpcli show neighbors)
 for iface in "${!iface_sysnames[@]}"; do
     ll_dp_sysname="${iface_sysnames[$iface]}"
     port_descr="${iface_portdescrs[$iface]}"
-    if [[ -n "$ll_dp_sysname" && -n "$port_descr" ]]; then
-        descr="${ll_dp_sysname} - ${port_descr}"
+    port_id="${iface_portid[$iface]}"
+    if [[ -n "$ll_dp_sysname" && -n "$port_descr" && -n "$port_id"]]; then
+        descr="${ll_dp_sysname}/${port_id} - ${port_descr}"
         log "Processing $iface with description $descr."
         update_description "$iface" "$descr"
     else
