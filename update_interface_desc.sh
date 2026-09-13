@@ -36,8 +36,8 @@ cp $INTERFACES_FILE $TEMP_FILE
 log "Backed up current interfaces file."
 
 # Configure lldpcli to only monitor en* interfaces
-lldpcli configure system interface pattern '*'
-log "Configured lldpcli to monitor interfaces matching '*' pattern."
+lldpcli configure system interface pattern 'en*'
+log "Configured lldpcli to monitor interfaces matching 'en*' pattern."
 
 # Function to update interface description
 update_description() {
