@@ -43,33 +43,61 @@ log "Configured lldpcli to monitor interfaces matching 'en*' pattern."
 update_description() {
     iface=$1
     descr=$2
+    # Use the description as provided
+    full_descr="$descr"
     pattern="iface $iface inet"
     if grep -q "^$pattern" $TEMP_FILE; then
         log "Found configuration for $iface."
         # Check if the description already exists
-        descr_line="^#\s*$descr"
+        descr_line="^#\s*$full_descr"
         if ! grep -q "$descr_line" $TEMP_FILE; then
             # Add the description to the interface definition
-            sed -i "/$pattern/a #$descr" $TEMP_FILE
-            log "Added description '$descr' to $iface."
+            sed -i "/$pattern/a #$full_descr" $TEMP_FILE
+            log "Added description '$full_descr' to $iface."
         else
-            log "Description '$descr' already exists for $iface, skipping."
+            log "Description '$full_descr' already exists for $iface, skipping."
         fi
     else
         log "No configuration found for $iface, skipping."
     fi
 }
 
+# Initialize variables to track interfaces and their SysName/PortDescr
+declare -A iface_sysnames
+declare -A iface_portdescrs
+
 # Process each neighbor and extract relevant data
 while IFS= read -r line; do
     if [[ "$line" =~ Interface: ]]; then
         iface=$(echo "$line" | awk '{print $2}' | tr -d ',')
+    elif [[ "$line" =~ SysName: ]]; then
+        ll_dp_sysname=$(echo "$line" | awk '{for(i=2;i<=NF;i++) printf "%s ", $i}' | sed 's/ *$//')
+        # Store SysName only if not already set for this interface
+        if [[ -z "${iface_sysnames[$iface]}" ]]; then
+            iface_sysnames[$iface]="$ll_dp_sysname"
+        fi
     elif [[ "$line" =~ PortDescr: ]]; then
-        port_descr=$(echo "$line" | cut -d ' ' -f 2-)
-        log "Processing $iface with port description $port_descr."
-        update_description "$iface" "$port_descr"
+        port_descr=$(echo "$line" | awk '{for(i=2;i<=NF;i++) printf "%s ", $i}' | sed 's/ *$//')
+        # Store PortDescr only if not already set for this interface
+        if [[ -z "${iface_portdescrs[$iface]}" ]]; then
+            iface_portdescrs[$iface]="$port_descr"
+            log "Found SysName '${iface_sysnames[$iface]}' and PortDescr '$port_descr' for $iface."
+        fi
     fi
 done < <(lldpcli show neighbors)
+
+# Update descriptions for each interface with a SysName and PortDescr
+for iface in "${!iface_sysnames[@]}"; do
+    ll_dp_sysname="${iface_sysnames[$iface]}"
+    port_descr="${iface_portdescrs[$iface]}"
+    if [[ -n "$ll_dp_sysname" && -n "$port_descr" ]]; then
+        descr="${ll_dp_sysname} - ${port_descr}"
+        log "Processing $iface with description $descr."
+        update_description "$iface" "$descr"
+    else
+        log "No SysName or PortDescr found for $iface, skipping."
+    fi
+done
 
 # Check for changes and update the original file if needed
 if ! cmp -s $TEMP_FILE $INTERFACES_FILE; then
