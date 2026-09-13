@@ -17,7 +17,7 @@ For convenience, an automated installation script is available to set up everyth
 To use the automated install script, follow these steps:
 
 1. **Clone the repository to your Proxmox server**:
-   To get started, clone the repository from GitHub by running the following command:
+   To get started, clone the repository from GitHub by running the following command (also installing git):
 
    ```bash
    git clone https://github.com/Wyattsb/PVE-LLDP.git
