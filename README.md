@@ -20,6 +20,7 @@ To use the automated install script, follow these steps:
    To get started, clone the repository from GitHub by running the following command (also installing git):
 
    ```bash
+   apt install git -y
    git clone https://github.com/Wyattsb/PVE-LLDP.git
    cd PVE-LLDP
    ```
