@@ -41,44 +41,106 @@ log "Configured lldpcli to monitor interfaces matching '*' pattern."
 
 # Function to update interface description
 update_description() {
-    iface=$1
-    descr=$2
+    iface="$1"
+    descr="$2"
     pattern="iface $iface inet"
+    tmp_file="${TEMP_FILE}.tmp"
+
+    log "---- Processing interface '$iface' ----"
+    log "Description: '$descr'"
+    log "Pattern: '^$pattern'"
 
     if grep -q "^$pattern" "$TEMP_FILE"; then
-        log "Found configuration for $iface."
+        log "Found matching interface stanza."
 
-        note=$(
-            awk -v pat="$pattern" '
-                $0 ~ "^" pat "$" { in_block=1; next }
-                in_block && /^iface / { exit }
-                in_block && /^#/ {
-                    if (match($0, /#NOTE.*/)) {
-                        print substr($0, RSTART)
-                        exit
-                    }
-                }
-            ' "$TEMP_FILE"
-        )
+        # Extract any existing #NOTE text
+        note=$(awk -v pat="$pattern" '
+            $0 ~ "^" pat {
+                in_block=1
+                next
+            }
 
-        # Remove all comment lines for this interface
-        awk -v pat="$pattern" '
-            $0 ~ "^" pat "$" { in_block=1; print; next }
-            in_block && /^iface / { in_block=0 }
-            in_block && /^#/ { next }
-            { print }
-        ' "$TEMP_FILE" > "${TEMP_FILE}.tmp" &&
-        mv "${TEMP_FILE}.tmp" "$TEMP_FILE"
+            in_block && /^iface / {
+                exit
+            }
+
+            in_block && /#NOTE/ {
+                match($0, /#NOTE.*/)
+                print substr($0, RSTART)
+                exit
+            }
+        ' "$TEMP_FILE")
 
         if [ -n "$note" ]; then
-            sed -i "/^$pattern/a #$descr $note" "$TEMP_FILE"
+            log "Found existing note: '$note'"
         else
-            sed -i "/^$pattern/a #$descr" "$TEMP_FILE"
+            log "No existing #NOTE found."
         fi
 
-        log "Updated description '$descr' for $iface."
+        log "Removing existing comments from interface block."
+
+        awk -v pat="$pattern" '
+            $0 ~ "^" pat {
+                in_block=1
+                print
+                next
+            }
+
+            in_block && /^iface / {
+                in_block=0
+            }
+
+            !(in_block && /^#/)
+        ' "$TEMP_FILE" > "$tmp_file"
+
+        if [ $? -ne 0 ]; then
+            log "ERROR: Failed to create temporary file."
+            rm -f "$tmp_file"
+            return 1
+        fi
+
+        mv "$tmp_file" "$TEMP_FILE"
+
+        if [ $? -ne 0 ]; then
+            log "ERROR: Failed to replace temp file."
+            rm -f "$tmp_file"
+            return 1
+        fi
+
+        if [ -n "$note" ]; then
+            new_comment="#$descr $note"
+        else
+            new_comment="#$descr"
+        fi
+
+        log "Inserting new comment: '$new_comment'"
+
+        sed -i "/^$pattern/a\\$new_comment" "$TEMP_FILE"
+
+        if [ $? -ne 0 ]; then
+            log "ERROR: sed insertion failed."
+            return 1
+        fi
+
+        log "Updated interface block now contains:"
+
+        grep -A10 "^$pattern" "$TEMP_FILE" >> "$LOG_FILE"
+
+        if diff -q "$INTERFACES_FILE" "$TEMP_FILE" >/dev/null; then
+            log "WARNING: TEMP_FILE is identical to INTERFACES_FILE after update."
+        else
+            log "SUCCESS: Changes detected."
+            diff -u "$INTERFACES_FILE" "$TEMP_FILE" >> "$LOG_FILE"
+        fi
+
+        rm -f "$tmp_file"
+
+        log "Finished processing '$iface'."
+
     else
-        log "No configuration found for $iface, skipping."
+        log "ERROR: No configuration found matching '^$pattern'"
+        log "Available interface definitions:"
+        grep "^iface " "$TEMP_FILE" >> "$LOG_FILE"
     fi
 }
 
