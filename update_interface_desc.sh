@@ -43,20 +43,23 @@ log "Configured lldpcli to monitor interfaces matching '*' pattern."
 update_description() {
     iface=$1
     descr=$2
-    # Use the description as provided
-    full_descr="$descr"
     pattern="iface $iface inet"
-    if grep -q "^$pattern" $TEMP_FILE; then
+
+    if grep -q "^$pattern" "$TEMP_FILE"; then
         log "Found configuration for $iface."
-        # Check if the description already exists
-        descr_line="^#\s*$full_descr"
-        if ! grep -q "$descr_line" $TEMP_FILE; then
-            # Add the description to the interface definition
-            sed -i "/$pattern/a #$full_descr" $TEMP_FILE
-            log "Added description '$full_descr' to $iface."
-        else
-            log "Description '$full_descr' already exists for $iface, skipping."
-        fi
+
+        # Remove comment lines after this interface definition,
+        # except those beginning with #NOTE
+        sed -i "/^$pattern/,/^iface / {
+            /^#/ {
+                /^#NOTE/!d
+            }
+        }" "$TEMP_FILE"
+
+        # Insert the new description directly below the iface line
+        sed -i "/^$pattern/a #$descr" "$TEMP_FILE"
+
+        log "Updated description '$descr' for $iface."
     else
         log "No configuration found for $iface, skipping."
     fi
