@@ -32,6 +32,9 @@ log() {
     echo "$(date +'%Y-%m-%d %H:%M:%S') - $*" >> $LOG_FILE
 }
 
+# Init AWK_TEMP
+touch $AWK_TEMP
+
 # Backup the current interfaces file
 cp $INTERFACES_FILE $TEMP_FILE
 log "Backed up current interfaces file."
