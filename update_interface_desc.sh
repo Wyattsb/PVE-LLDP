@@ -41,25 +41,61 @@ log "Configured lldpcli to monitor interfaces matching '*' pattern."
 
 # Function to update interface description
 update_description() {
-    iface=$1
-    descr=$2
+    iface="$1"
+    descr="$2"
     pattern="iface $iface inet"
 
     if grep -q "^$pattern" "$TEMP_FILE"; then
         log "Found configuration for $iface."
 
-        # Remove comment lines after this interface definition,
-        # except those beginning with #NOTE
-        sed -i "/^$pattern/,/^iface / {
-            /^#/ {
-                /^#NOTE/!d
+        awk -v pat="$pattern" -v descr="$descr" '
+        BEGIN {
+            note = ""
+            in_target = 0
+        }
+
+        # Start of target interface block
+        $0 ~ "^" pat "$" {
+            print
+            in_target = 1
+            next
+        }
+
+        # End of interface block
+        in_target && /^iface / {
+            print "#" descr note
+            note = ""
+            in_target = 0
+            print
+            next
+        }
+
+        # Within target block, capture any #NOTE text and discard comments
+        in_target && /^#/ {
+            if (match($0, /#NOTE.*/))
+                note = " " substr($0, RSTART)
+            next
+        }
+
+        # Print non-comment lines inside target block
+        in_target {
+            print
+            next
+        }
+
+        # Everything outside target block
+        {
+            print
+        }
+
+        END {
+            if (in_target) {
+                print "#" descr note
             }
-        }" "$TEMP_FILE"
+        }
+        ' "$TEMP_FILE" > "${TEMP_FILE}.tmp" && mv "${TEMP_FILE}.tmp" "$TEMP_FILE"
 
-        # Insert the new description directly below the iface line
-        sed -i "/^$pattern/a #$descr" "$TEMP_FILE"
-
-        log "Updated description '$descr' for $iface."
+        log "Updated description '\''$descr'\'' for $iface."
     else
         log "No configuration found for $iface, skipping."
     fi
