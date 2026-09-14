@@ -24,6 +24,7 @@
 # Path to the network interfaces configuration file
 INTERFACES_FILE="/etc/network/interfaces"
 TEMP_FILE="/tmp/interfaces.new"
+AWK_TEMP="/tmp/awk-interfaces.new"
 LOG_FILE="/var/log/update_interface_desc.log"
 
 # Logging function
@@ -93,7 +94,7 @@ update_description() {
                 print "#" descr note
             }
         }
-        ' "$TEMP_FILE" > "${TEMP_FILE}.tmp" && mv "${TEMP_FILE}.tmp" "$TEMP_FILE"
+        ' "$TEMP_FILE" > "$AWK_TEMP" && mv "$AWK_TEMP" "$TEMP_FILE"
 
         log "Updated description '\''$descr'\'' for $iface."
     else
@@ -158,4 +159,5 @@ fi
 
 # Clean up temporary file
 rm $TEMP_FILE
+rm $AWK_TEMP
 log "Cleanup completed."
