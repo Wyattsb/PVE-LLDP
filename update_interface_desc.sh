@@ -52,54 +52,38 @@ update_description() {
     if grep -q "^$pattern" "$TEMP_FILE"; then
         log "Found configuration for $iface."
 
-        awk -v pat="$pattern" -v descr="$descr" '
-        BEGIN {
-            note = ""
-            in_target = 0
-        }
+        # Extract any existing #NOTE from this interface block
+        note=$(awk -v pat="$pattern" '
+            $0 ~ "^" pat { in_block=1; next }
+            in_block && /^iface / { exit }
 
-        # Start of target interface block
-        $0 ~ "^" pat "$" {
-            print
-            in_target = 1
-            next
-        }
-
-        # End of interface block
-        in_target && /^iface / {
-            print "#" descr note
-            note = ""
-            in_target = 0
-            print
-            next
-        }
-
-        # Within target block, capture any #NOTE text and discard comments
-        in_target && /^#/ {
-            if (match($0, /#NOTE.*/))
-                note = " " substr($0, RSTART)
-            next
-        }
-
-        # Print non-comment lines inside target block
-        in_target {
-            print
-            next
-        }
-
-        # Everything outside target block
-        {
-            print
-        }
-
-        END {
-            if (in_target) {
-                print "#" descr note
+            in_block && /#NOTE/ {
+                match($0, /#NOTE.*/)
+                print substr($0, RSTART)
+                exit
             }
-        }
-        ' "$TEMP_FILE" > "$AWK_TEMP" && mv "$AWK_TEMP" "$TEMP_FILE"
+        ' "$TEMP_FILE")
 
-        log "Updated description '\''$descr'\'' for $iface."
+        # Remove all comment lines within this interface block
+        awk -v pat="$pattern" '
+            $0 ~ "^" pat { in_block=1; print; next }
+
+            in_block && /^iface / {
+                in_block=0
+            }
+
+            !(in_block && /^#/)
+        ' "$TEMP_FILE" > "$AWK_TEMP" &&
+        mv "$AWK_TEMP" "$TEMP_FILE"
+
+        # Add updated description
+        if [ -n "$note" ]; then
+            sed -i "/^$pattern/a\\#$descr $note" "$TEMP_FILE"
+        else
+            sed -i "/^$pattern/a\\#$descr" "$TEMP_FILE"
+        fi
+
+        log "Updated description '$descr' for $iface."
     else
         log "No configuration found for $iface, skipping."
     fi
