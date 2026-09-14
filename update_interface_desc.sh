@@ -153,8 +153,10 @@ declare -A iface_portid
 while IFS= read -r line; do
     if [[ "$line" =~ Interface: ]]; then
         iface=$(echo "$line" | awk '{print $2}' | tr -d ',')
+        log "Found interface: $iface"
     elif [[ "$line" =~ SysName: ]]; then
         ll_dp_sysname=$(echo "$line" | awk '{for(i=2;i<=NF;i++) printf "%s ", $i}' | sed 's/ *$//')
+        log "Found system name: $sysname"
         # Store SysName only if not already set for this interface
         if [[ -z "${iface_sysnames[$iface]}" ]]; then
             iface_sysnames[$iface]="$ll_dp_sysname"
@@ -189,6 +191,16 @@ for iface in "${!iface_sysnames[@]}"; do
         log "No SysName or PortDescr found for $iface, skipping."
     fi
 done
+
+log "Comparing:"
+log "  $INTERFACES_FILE"
+log "  $TEMP_FILE"
+
+if diff -q "$INTERFACES_FILE" "$TEMP_FILE" >/dev/null; then
+    log "No changes to apply."
+else
+    log "Changes detected."
+fi
 
 # Check for changes and update the original file if needed
 if ! cmp -s $TEMP_FILE $INTERFACES_FILE; then
