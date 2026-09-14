@@ -24,16 +24,12 @@
 # Path to the network interfaces configuration file
 INTERFACES_FILE="/etc/network/interfaces"
 TEMP_FILE="/tmp/interfaces.new"
-AWK_TEMP="/tmp/awk-interfaces.new"
 LOG_FILE="/var/log/update_interface_desc.log"
 
 # Logging function
 log() {
     echo "$(date +'%Y-%m-%d %H:%M:%S') - $*" >> $LOG_FILE
 }
-
-# Init AWK_TEMP
-touch $AWK_TEMP
 
 # Backup the current interfaces file
 cp $INTERFACES_FILE $TEMP_FILE
@@ -45,42 +41,39 @@ log "Configured lldpcli to monitor interfaces matching '*' pattern."
 
 # Function to update interface description
 update_description() {
-    iface="$1"
-    descr="$2"
+    iface=$1
+    descr=$2
     pattern="iface $iface inet"
 
     if grep -q "^$pattern" "$TEMP_FILE"; then
         log "Found configuration for $iface."
 
-        # Extract any existing #NOTE from this interface block
-        note=$(awk -v pat="$pattern" '
-            $0 ~ "^" pat { in_block=1; next }
-            in_block && /^iface / { exit }
+        note=$(
+            awk -v pat="$pattern" '
+                $0 ~ "^" pat "$" { in_block=1; next }
+                in_block && /^iface / { exit }
+                in_block && /^#/ {
+                    if (match($0, /#NOTE.*/)) {
+                        print substr($0, RSTART)
+                        exit
+                    }
+                }
+            ' "$TEMP_FILE"
+        )
 
-            in_block && /#NOTE/ {
-                match($0, /#NOTE.*/)
-                print substr($0, RSTART)
-                exit
-            }
-        ' "$TEMP_FILE")
-
-        # Remove all comment lines within this interface block
+        # Remove all comment lines for this interface
         awk -v pat="$pattern" '
-            $0 ~ "^" pat { in_block=1; print; next }
+            $0 ~ "^" pat "$" { in_block=1; print; next }
+            in_block && /^iface / { in_block=0 }
+            in_block && /^#/ { next }
+            { print }
+        ' "$TEMP_FILE" > "${TEMP_FILE}.tmp" &&
+        mv "${TEMP_FILE}.tmp" "$TEMP_FILE"
 
-            in_block && /^iface / {
-                in_block=0
-            }
-
-            !(in_block && /^#/)
-        ' "$TEMP_FILE" > "$AWK_TEMP" &&
-        mv "$AWK_TEMP" "$TEMP_FILE"
-
-        # Add updated description
         if [ -n "$note" ]; then
-            sed -i "/^$pattern/a\\#$descr $note" "$TEMP_FILE"
+            sed -i "/^$pattern/a #$descr $note" "$TEMP_FILE"
         else
-            sed -i "/^$pattern/a\\#$descr" "$TEMP_FILE"
+            sed -i "/^$pattern/a #$descr" "$TEMP_FILE"
         fi
 
         log "Updated description '$descr' for $iface."
@@ -146,5 +139,4 @@ fi
 
 # Clean up temporary file
 rm $TEMP_FILE
-rm $AWK_TEMP
 log "Cleanup completed."
