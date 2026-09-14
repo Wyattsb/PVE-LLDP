@@ -39,7 +39,7 @@ echo 'DAEMON_ARGS="-x -c -s -e"' | tee /etc/default/lldpd
 echo "Restarting lldpd service..."
 systemctl restart lldpd
 
-echo "Configuring lldpd to monitor all interfaces matching '*' pattern..."
+echo "Configuring lldpd to monitor all interfaces matching en* pattern..."
 lldpcli configure system interface pattern en*
 
 # Assuming the update_interface_desc.sh is in the same directory as install.sh
