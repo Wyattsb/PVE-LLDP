@@ -98,7 +98,7 @@ for iface in "${!iface_sysnames[@]}"; do
     ll_dp_sysname="${iface_sysnames[$iface]}"
     port_descr="${iface_portdescrs[$iface]}"
     port_id="${iface_portid[$iface]}"
-    if [[ -n "$ll_dp_sysname" && -n "$port_descr" && -n "$port_id"]]; then
+    if [[ -n "$ll_dp_sysname" && -n "$port_descr" && -n "$port_id" ]]; then
         descr="${ll_dp_sysname}/${port_id} - ${port_descr}"
         log "Processing $iface with description $descr."
         update_description "$iface" "$descr"
