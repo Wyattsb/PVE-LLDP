@@ -79,7 +79,7 @@ while IFS= read -r line; do
         fi
     elif [[ "$line" =~ PortID: ]]; then
         # This commands works well for my Ubiquiti Switches to convert 'local Port 5' into 'Port 5' but may not produce desirable results on other switches, YMMV.
-        port_id=$(echo "$line" | awk '{for(i=2;i<=NF;i++) printf "%s ", $i}' | sed 's/ *$//' | sed 's/^local*//')
+        port_id=$(echo "$line" | awk '{for(i=2;i<=NF;i++) printf "%s ", $i}' | sed 's/ *$//' | sed 's/^local //')
         # Store PortID only if not already set for this interface
         if [[ -z "${iface_portid[$iface]}" ]]; then
             iface_portid[$iface]="$port_id"
